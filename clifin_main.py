@@ -1,5 +1,6 @@
 import sqlite3 as sql
 from datetime import datetime
+import csv
 
 
 def init_db():
@@ -144,6 +145,33 @@ def data_entry():
             print("Invalid choice. Please enter y or n.")
 
 
+def export_to_csv(rows, year, month):
+    """Export transaction data to CSV file"""
+    month_name = datetime(year, month, 1).strftime("%B")
+    filename = f"transactions_{year}_{month:02d}_{month_name}.csv"
+    
+    try:
+        with open(filename, 'w', newline='') as csvfile:
+            fieldnames = ['ID', 'Date', 'Type', 'Category', 'Amount']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            for record_id, amount, category, transaction_type, created_at in rows:
+                writer.writerow({
+                    'ID': record_id,
+                    'Date': created_at,
+                    'Type': transaction_type,
+                    'Category': category,
+                    'Amount': f"{amount:.2f}"
+                })
+        
+        print(f"Data exported successfully to {filename}")
+        return True
+    except Exception as e:
+        print(f"Error exporting to CSV: {e}")
+        return False
+
+
 def data_read():
     print("\nFinancial Records Reader")
 
@@ -238,6 +266,16 @@ def data_read():
         print("-" * 72)
         for record_id, amount, category, transaction_type, created_at in rows:
             print(f"{record_id:<3} | {created_at:<19} | {transaction_type:<7} | {category:<12} | {amount:>10.2f}")
+        
+        while True:
+            export_choice = input("\nWould you like to export this data as CSV? (y/n): ").strip().lower()
+            if export_choice in {'y', 'yes'}:
+                export_to_csv(rows, year, month)
+                break
+            elif export_choice in {'n', 'no'}:
+                break
+            else:
+                print("Invalid choice. Please enter y or n.")
 
 
 if __name__ == '__main__':
@@ -255,8 +293,8 @@ if __name__ == '__main__':
         elif choice == '2':
             data_read()
         elif choice == '3':
-            print("Goodbye!")
-            print("Created by Lochana Ranatunga and Copilot")
+            print("Thank you for using CliFin!")
+            print("Created by Lochana, with help from Copilot.")
             break
         else:
             print("Invalid choice. Please enter 1, 2, or 3.")
