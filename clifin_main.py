@@ -8,6 +8,7 @@ ASSETS_DB = 'assets.db'
 
 
 def init_db(db_name=STORAGE_DB):
+    print("Database is being initialized...")
     conn = sql.connect(db_name)
     c = conn.cursor()
     c.execute("""
@@ -24,6 +25,7 @@ def init_db(db_name=STORAGE_DB):
 
 
 def init_assets_db():
+    print("Database is being intialized...")
     conn = sql.connect(ASSETS_DB)
     c = conn.cursor()
     c.execute("""
@@ -119,8 +121,8 @@ def data_entry():
             categories = {
                 '1': 'Salary',
                 '2': 'Gift',
-                '3': 'Bonus',
-                '4': 'Freelance',
+                '3': 'Interest',
+                '4': 'Reverse Transaction',
                 '5': 'Other'
             }
         else:
@@ -169,7 +171,7 @@ def data_entry():
 
 
 def export_to_csv(rows, year, month):
-    """Export transaction data to CSV file"""
+    print("Export process started...")
     month_name = datetime(year, month, 1).strftime("%B")
     filename = f"transactions_{year}_{month:02d}_{month_name}.csv"
 
@@ -196,7 +198,7 @@ def export_to_csv(rows, year, month):
 
 
 def data_read():
-    print("\nFinancial Records")
+    print("\nView Historical Data")
 
     while True:
         year_input = input("Enter year: ").strip()
@@ -302,7 +304,7 @@ def data_read():
 
 
 def add_asset_entry():
-    print("\nAdd Other Asset")
+    print("\nAsset Types:")
     print("1. Fixed Deposit")
     print("2. Investment")
     print("3. Other Asset")
@@ -339,10 +341,12 @@ def add_asset_entry():
             continue
 
         break
-
+    
+    print("Connecting to database...")
     conn = init_assets_db()
     c = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("Writing to database...")
     c.execute(
         "INSERT INTO assets (name, asset_type, amount, created_at) VALUES (?, ?, ?, ?)",
         (asset_name, asset_type, amount, created_at)
@@ -353,7 +357,7 @@ def add_asset_entry():
 
 
 def view_current_financial_status():
-    print("\nCurrent Financial Status")
+    print("\nView Financial Status")
 
     conn = init_db()
     c = conn.cursor()
@@ -407,12 +411,12 @@ def view_current_financial_status():
 
 
 if __name__ == '__main__':
-    print("CliFin - Command Line Financial Tracker")
+    print("CliFin")
     while True:
         print("\nMain Menu")
-        print("1. Enter data")
-        print("2. View summary")
-        print("3. View current financial status")
+        print("1. Create New Transaction Record")
+        print("2. View Historical Data")
+        print("3. View Financial Status")
         print("4. Exit")
 
         choice = input("Choose an option (1, 2, 3, or 4): ").strip()
