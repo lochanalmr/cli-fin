@@ -13,11 +13,12 @@ Clifin is a simple command line tool for tracking finances. All databases are cr
 ## Technology stack
 - Python 3.14
 - sqlite3
+- json
 
 ## Using the program
 Inside the folder with the python script inside your preferred terminal emulator, and run `python clifin_main.py`. 
 
-Upon entering your first transaction, a database called `storage.db` will be created. When you add assets through the main menu, `assets.db` will be created. Do not delete these files, unless you want to completely delete all stored data. Functionality for editing previous transactions is not provided, so if you want to edit previous transactions, you may need to use a database management tool. However, updating asset values stored in `assets.db` is supported within the program.
+Upon entering your first transaction, a database called `storage.db` will be created. When you add assets through the main menu, `assets.db` will be created. Do not delete these files, unless you want to completely delete all stored data. Functionality for editing previous transactions is not provided, so if you want to edit previous transactions, you may need to use a database management tool. However, updating asset values stored in `assets.db` is supported within the program. `user_config.json` contains the name entered in the first run, and can be changed if required by editing it.
 
 When data is exported as a .csv file, it will be available within the same folder the program runs from. The database file will be named in this format: `transactions_[year]_[month no.]_[month name]`. The .csv file will include the exact date and time of when the transaction was entered, income/expense, category of income/expense, and amount of the transaction.
 
