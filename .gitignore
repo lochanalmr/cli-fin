@@ -3,3 +3,4 @@ __pycache__/
 *.db
 *.csv
 user_config.json
+/tests
