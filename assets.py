@@ -42,7 +42,7 @@ def add_asset_entry():
 
         break
 
-    print("Connecting to database...")
+    print("\nConnecting to assets database...")
     conn = init_assets_db()
     c = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -110,10 +110,12 @@ def update_asset_value(asset_id=None, new_amount=None, db_name=ASSETS_DB):
             continue
         break
 
+    print("\nConnecting to assets database...")
     conn = init_assets_db(db_name)
+    print("Successfully connected to assets database!")
     c = conn.cursor()
     c.execute("UPDATE assets SET amount = ? WHERE id = ?", (new_amount, asset_id))
     conn.commit()
     conn.close()
-    print("Asset value updated successfully.")
+    print("Asset value updated successfully!")
     return True
