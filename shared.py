@@ -4,9 +4,10 @@ import sqlite3 as sql
 
 STORAGE_DB = 'storage.db'
 ASSETS_DB = 'assets.db'
+SUBSCRIPTIONS_DB = 'subscriptions.db'
 CONFIG_FILE = 'user_config.json'
 
-VERSION = '1.3'
+VERSION = '1.4'
 
 
 def safe_input(prompt):
@@ -17,7 +18,7 @@ def safe_input(prompt):
 
 
 def init_db(db_name=STORAGE_DB):
-    print("\nDatabase is being initialized...")
+    print("\nTransactions database is being initialized...")
     conn = sql.connect(db_name)
     c = conn.cursor()
     c.execute("""
@@ -34,7 +35,7 @@ def init_db(db_name=STORAGE_DB):
 
 
 def init_assets_db(db_name=ASSETS_DB):
-    print("\nDatabase is being intialized...")
+    print("\nAssets database is being intialized...")
     conn = sql.connect(db_name)
     c = conn.cursor()
     c.execute("""
@@ -43,6 +44,28 @@ def init_assets_db(db_name=ASSETS_DB):
         name TEXT,
         asset_type TEXT,
         amount REAL,
+        created_at TEXT
+    )
+    """)
+    conn.commit()
+    return conn
+
+
+def init_subscriptions_db(db_name=SUBSCRIPTIONS_DB):
+    print("\nSubscriptions database is being initialized...")
+    conn = sql.connect(db_name)
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS subscriptions (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        amount REAL,
+        frequency TEXT,
+        start_date TEXT,
+        next_due_date TEXT,
+        last_processed_at TEXT,
+        category TEXT,
+        status TEXT,
         created_at TEXT
     )
     """)
