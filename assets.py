@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from shared import ASSETS_DB, init_assets_db
+from shared import ASSETS_DB, init_assets_db, safe_input
 
 
 def add_asset_entry():
@@ -10,7 +10,7 @@ def add_asset_entry():
     print("3. Other Asset")
 
     while True:
-        asset_choice = input("Enter asset type code (1, 2, or 3): ").strip()
+        asset_choice = safe_input("Enter asset type code (1, 2, or 3): ").strip()
         if asset_choice == '1':
             asset_type = 'Fixed Deposit'
             break
@@ -23,13 +23,13 @@ def add_asset_entry():
         print("Invalid choice. Please enter 1, 2, or 3.")
 
     while True:
-        asset_name = input("Enter asset name/description: ").strip()
+        asset_name = safe_input("Enter asset name/description: ").strip()
         if asset_name:
             break
         print("Asset name cannot be empty.")
 
     while True:
-        amount_input = input("Enter amount: ").strip()
+        amount_input = safe_input("Enter amount: ").strip()
         try:
             amount = float(amount_input)
         except ValueError:
@@ -81,7 +81,7 @@ def update_asset_value(asset_id=None, new_amount=None, db_name=ASSETS_DB):
 
     while True:
         if asset_id is None:
-            asset_id_input = input("Enter asset ID to update: ").strip()
+            asset_id_input = safe_input("Enter asset ID to update: ").strip()
             try:
                 asset_id = int(asset_id_input)
             except ValueError:
@@ -96,7 +96,7 @@ def update_asset_value(asset_id=None, new_amount=None, db_name=ASSETS_DB):
 
     while True:
         if new_amount is None:
-            amount_input = input("Enter new amount: ").strip()
+            amount_input = safe_input("Enter new amount: ").strip()
             try:
                 new_amount = float(amount_input)
             except ValueError:
