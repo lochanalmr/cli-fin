@@ -1,7 +1,7 @@
 import csv
 from datetime import datetime
 
-from shared import init_db, safe_input
+from shared import EXPENSE_CATEGORIES, init_db, safe_input
 
 
 def _normalize_transaction_amount(amount, transaction_type):
@@ -22,21 +22,12 @@ def _get_transaction_categories(transaction_type):
             '4': 'Reversal',
             '5': 'Other'
         }
-    return {
-        '1': 'Entertainment',
-        '2': 'Food',
-        '3': 'Asset Purchase',
-        '4': 'Travel',
-        '5': 'Other'
-    }
+    return EXPENSE_CATEGORIES
 
 
 def data_write(amount, category, transaction_type):
-    print("\nConnecting to transactions database...")
     conn = init_db()
     c = conn.cursor()
-
-    print("Transactions database connected...")
 
     normalized_type = transaction_type.lower()
     signed_amount = _normalize_transaction_amount(amount, normalized_type)
@@ -50,8 +41,8 @@ def data_write(amount, category, transaction_type):
     )
 
     conn.commit()
-    print("Completed writing to transactions database successfully!")
     conn.close()
+    print("Transaction added successfully.")
 
 
 def data_entry():

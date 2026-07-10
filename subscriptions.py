@@ -1,17 +1,11 @@
 from datetime import date, datetime, timedelta
 import re
 
-from shared import init_db, init_subscriptions_db, safe_input
+from shared import EXPENSE_CATEGORIES, init_db, init_subscriptions_db, safe_input
 
 
 def _get_expense_categories():
-    return {
-        '1': 'Entertainment',
-        '2': 'Food',
-        '3': 'Asset Purchase',
-        '4': 'Travel',
-        '5': 'Other'
-    }
+    return EXPENSE_CATEGORIES
 
 
 def parse_subscription_date(value):
@@ -68,12 +62,9 @@ def calculate_next_due_date(current_due_date, frequency):
 
 
 def _insert_subscription_record(name, amount, frequency, start_date, category, status='active'):
-    print("Connecting to subscriptions database...")
     conn = init_subscriptions_db()
-    print("Successfully connected to subscriptions database!")
     c = conn.cursor()
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print("Subscription record is being updated...")
     c.execute(
         """
         INSERT INTO subscriptions (name, amount, frequency, start_date, next_due_date, last_processed_at, category, status, created_at)
@@ -82,7 +73,6 @@ def _insert_subscription_record(name, amount, frequency, start_date, category, s
         (name, amount, frequency, start_date, start_date, None, category, status, created_at)
     )
     conn.commit()
-    print("Subscription record was successfully updated!")
     conn.close()
 
 
@@ -152,16 +142,13 @@ def add_subscription():
 
 
 def _fetch_subscriptions():
-    print("Connecting to subscriptions database...")
     conn = init_subscriptions_db()
-    print("Successfully connected to subscriptions database...")
     c = conn.cursor()
     c.execute(
         "SELECT id, name, amount, frequency, start_date, next_due_date, last_processed_at, category, status, created_at FROM subscriptions ORDER BY next_due_date"
     )
     rows = c.fetchall()
     conn.close()
-    print("All subscriptions were sucessfully fetched from the database!")
     return rows
 
 
@@ -371,18 +358,15 @@ def collect_pending_due_dates(current_due_date, today, frequency):
 
 
 def process_due_subscriptions():
-    print('\nConnecting to subscriptions database...')
     conn = init_subscriptions_db()
-    print("Subscriptions database successfully connected!")
     c = conn.cursor()
     c.execute(
         "SELECT id, name, amount, frequency, start_date, next_due_date, category, created_at FROM subscriptions WHERE status = 'active'"
     )
     rows = c.fetchall()
-    conn.close()
 
     today = date.today()
-    processed_any = False
+    transaction_conn = None
     for record_id, name, amount, frequency, start_date, next_due_date, category, created_at_value in rows:
         try:
             due_date = date.fromisoformat(next_due_date)
@@ -395,7 +379,6 @@ def process_due_subscriptions():
         if due_date > today:
             continue
 
-        processed_any = True
         pending_due_dates = collect_pending_due_dates(due_date, today, frequency)
         if pending_due_dates:
             prompt_for_transaction = should_prompt_for_due_subscription(
@@ -412,16 +395,16 @@ def process_due_subscriptions():
 
             processing_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if should_add_expense:
+                if transaction_conn is None:
+                    transaction_conn = init_db()
+                expense_cursor = transaction_conn.cursor()
                 for pending_due in pending_due_dates:
-                    print(f"Due subscription found. Subscription was added as an expense for {pending_due.strftime('%d-%m-%Y')}.")
-                    conn = init_db()
-                    expense_cursor = conn.cursor()
                     expense_cursor.execute(
                         "INSERT INTO storage (amount, category, type, created_at) VALUES (?, ?, ?, ?)",
                         (-abs(amount), category, 'expense', processing_time)
                     )
-                    conn.commit()
-                    conn.close()
+
+                print(f"Added {len(pending_due_dates)} due expense(s) for subscription '{name}'.")
 
                 next_due_date_obj = pending_due_dates[-1]
                 if next_due_date_obj < today:
@@ -429,7 +412,6 @@ def process_due_subscriptions():
                 if next_due_date_obj is None:
                     continue
 
-                conn = init_subscriptions_db()
                 schedule_cursor = conn.cursor()
                 schedule_cursor.execute(
                     "UPDATE subscriptions SET status='processed', last_processed_at=? WHERE id=?",
@@ -442,21 +424,17 @@ def process_due_subscriptions():
                     """,
                     (name, amount, frequency, start_date, next_due_date_obj.strftime('%Y-%m-%d'), None, category, 'active', processing_time)
                 )
-                conn.commit()
-                conn.close()
 
-                if prompt_for_transaction and not should_add_expense:
-                    print('Subscription skipped. No expense was added.')
             else:
-                conn = init_subscriptions_db()
                 schedule_cursor = conn.cursor()
                 schedule_cursor.execute(
                     "UPDATE subscriptions SET status='processed', last_processed_at=? WHERE id=?",
                     (processing_time, record_id)
                 )
-                conn.commit()
-                conn.close()
                 print('Subscription skipped. No expense was added.')
 
-    if not processed_any:
-        print('No new subscription debits found.')
+    if transaction_conn is not None:
+        transaction_conn.commit()
+        transaction_conn.close()
+    conn.commit()
+    conn.close()

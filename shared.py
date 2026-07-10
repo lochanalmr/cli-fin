@@ -9,6 +9,49 @@ CONFIG_FILE = 'user_config.json'
 
 VERSION = '1.4'
 
+EXPENSE_CATEGORIES = {
+    '1': 'Entertainment',
+    '2': 'Food',
+    '3': 'Asset Purchase',
+    '4': 'Travel',
+    '5': 'Other',
+}
+
+_DATABASE_SCHEMAS = {
+    STORAGE_DB: """
+        CREATE TABLE IF NOT EXISTS storage (
+            id INTEGER PRIMARY KEY,
+            amount REAL,
+            category TEXT,
+            type TEXT,
+            created_at TEXT
+        )
+    """,
+    ASSETS_DB: """
+        CREATE TABLE IF NOT EXISTS assets (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            asset_type TEXT,
+            amount REAL,
+            created_at TEXT
+        )
+    """,
+    SUBSCRIPTIONS_DB: """
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            amount REAL,
+            frequency TEXT,
+            start_date TEXT,
+            next_due_date TEXT,
+            last_processed_at TEXT,
+            category TEXT,
+            status TEXT,
+            created_at TEXT
+        )
+    """,
+}
+
 
 def safe_input(prompt):
     try:
@@ -17,60 +60,23 @@ def safe_input(prompt):
         raise SystemExit(0)
 
 
-def init_db(db_name=STORAGE_DB):
-    print("\nTransactions database is being initialized...")
+def _initialize_database(db_name, schema):
     conn = sql.connect(db_name)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS storage (
-        id INTEGER PRIMARY KEY,
-        amount REAL,
-        category TEXT,
-        type TEXT,
-        created_at TEXT
-    )
-    """)
+    conn.execute(schema)
     conn.commit()
     return conn
+
+
+def init_db(db_name=STORAGE_DB):
+    return _initialize_database(db_name, _DATABASE_SCHEMAS[STORAGE_DB])
 
 
 def init_assets_db(db_name=ASSETS_DB):
-    print("\nAssets database is being intialized...")
-    conn = sql.connect(db_name)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS assets (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        asset_type TEXT,
-        amount REAL,
-        created_at TEXT
-    )
-    """)
-    conn.commit()
-    return conn
+    return _initialize_database(db_name, _DATABASE_SCHEMAS[ASSETS_DB])
 
 
 def init_subscriptions_db(db_name=SUBSCRIPTIONS_DB):
-    print("\nSubscriptions database is being initialized...")
-    conn = sql.connect(db_name)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS subscriptions (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        amount REAL,
-        frequency TEXT,
-        start_date TEXT,
-        next_due_date TEXT,
-        last_processed_at TEXT,
-        category TEXT,
-        status TEXT,
-        created_at TEXT
-    )
-    """)
-    conn.commit()
-    return conn
+    return _initialize_database(db_name, _DATABASE_SCHEMAS[SUBSCRIPTIONS_DB])
 
 
 def load_user_name(config_file=CONFIG_FILE):

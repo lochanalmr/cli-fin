@@ -42,11 +42,9 @@ def add_asset_entry():
 
         break
 
-    print("\nConnecting to assets database...")
     conn = init_assets_db()
     c = conn.cursor()
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("Writing to database...")
     c.execute(
         "INSERT INTO assets (name, asset_type, amount, created_at) VALUES (?, ?, ?, ?)",
         (asset_name, asset_type, amount, created_at)
@@ -110,9 +108,7 @@ def update_asset_value(asset_id=None, new_amount=None, db_name=ASSETS_DB):
             continue
         break
 
-    print("\nConnecting to assets database...")
     conn = init_assets_db(db_name)
-    print("Successfully connected to assets database!")
     c = conn.cursor()
     c.execute("UPDATE assets SET amount = ? WHERE id = ?", (new_amount, asset_id))
     conn.commit()
