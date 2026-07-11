@@ -263,6 +263,75 @@ def update_loan():
             continue
 
 
+def collect_pending_loan_due_dates(current_due_date, today, frequency):
+    """Return loan due dates from current_due_date through today."""
+    if not isinstance(current_due_date, date) or not isinstance(today, date):
+        return []
+
+    if current_due_date > today:
+        return []
+
+    pending = []
+    cursor = current_due_date
+    while cursor <= today:
+        pending.append(cursor)
+        cursor = calculate_next_due_date(cursor, frequency)
+        if cursor is None:
+            break
+    return pending
+
+
+def mark_loan_payments_as_already_paid(loan_id, payment_count):
+    """Advance overdue loan payments without creating current-month expenses."""
+    rows = _fetch_loans()
+    selected_loan = next((row for row in rows if row[0] == loan_id), None)
+    if not selected_loan:
+        raise ValueError(f'Loan with id {loan_id} was not found.')
+
+    (record_id, name, payment_amount_regular, frequency, term_count,
+     total_loan_value, remaining_balance, first_due_date, next_due_date,
+     last_payment_at, status, created_at) = selected_loan
+
+    normalized_count = int(payment_count)
+    if normalized_count <= 0:
+        raise ValueError('Payment count must be greater than 0.')
+
+    total_paid = min(payment_amount_regular * normalized_count, remaining_balance)
+    new_remaining_balance = max(remaining_balance - total_paid, 0.0)
+
+    new_next_due_date = next_due_date
+    try:
+        current_due = datetime.strptime(next_due_date, '%d-%m-%Y').date()
+        for _ in range(normalized_count):
+            next_due = calculate_next_due_date(current_due, frequency)
+            if next_due is None:
+                break
+            current_due = next_due
+        new_next_due_date = current_due.strftime('%d-%m-%Y')
+    except (ValueError, TypeError):
+        pass
+
+    processed_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = init_loans_db()
+    c = conn.cursor()
+    c.execute(
+        """UPDATE loans SET remaining_balance=?, next_due_date=?, last_payment_at=?,
+           status=?, payment_amount=? WHERE id=?""",
+        (new_remaining_balance, new_next_due_date, processed_at,
+         'paid' if new_remaining_balance <= 0 else 'active', payment_amount_regular, record_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        'loan_id': record_id,
+        'payment_count': normalized_count,
+        'total_paid': total_paid,
+        'remaining_balance': new_remaining_balance,
+        'next_due_date': new_next_due_date,
+        'status': 'paid' if new_remaining_balance <= 0 else 'active',
+    }
+
 def apply_loan_payment_to_loan(loan_id, payment_amount, advance_due_date=False):
     """Apply a payment to a specific loan and update its remaining balance and due date."""
     rows = _fetch_loans()
@@ -330,10 +399,10 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
         print('No active loans found.')
         return
 
-    if not _display_loans(active_loans):
-        return
-
     if loan_id is None:
+        if not _display_loans(active_loans):
+            return
+
         loan_id = get_int_input(
             'Enter loan ID to make payment: ',
             'Invalid ID. Please enter a valid number.',
@@ -527,10 +596,41 @@ def process_due_loan_payments():
         except (ValueError, TypeError):
             continue
 
-        if due_date <= today and remaining_balance > 0:
-            # Loan payment is due, prompt user
-            print(f"\nLoan payment of {format_currency(payment_amount)} is due for '{name}' (Due: {next_due_date})")
-            print("NOTE: The full amount will be recorded as an expense transaction.")
-            should_pay = safe_input(f"Would you like to make a payment now? (y/n): ").strip().lower()
-            if should_pay in {'y', 'yes'}:
-                make_loan_payment(loan_id=record_id, payment_amount=payment_amount, is_partial=False)
+        pending_due_dates = collect_pending_loan_due_dates(due_date, today, frequency)
+        if not pending_due_dates or remaining_balance <= 0:
+            continue
+
+        due_count = len(pending_due_dates)
+        total_due = min(payment_amount * due_count, remaining_balance)
+        print(f"\nLoan payment of {format_currency(payment_amount)} is due for '{name}' (Due: {next_due_date})")
+
+        if due_count > 1:
+            first_due = pending_due_dates[0].strftime('%d-%m-%Y')
+            last_due = pending_due_dates[-1].strftime('%d-%m-%Y')
+            print(f"This loan has {due_count} pending payment(s) from {first_due} through {last_due}.")
+            print(f"Choose whether to record a payment now or mark previous payments as already paid.")
+        else:
+            print("Choose whether to record this payment now or mark it as already paid.")
+
+        print("1. Make one payment now and record it as this month's expense")
+        print(f"2. Mark all {due_count} pending payment(s) as already paid without adding expense records ({format_currency(total_due)})")
+        print("3. Skip for now")
+        choice = get_choice(
+            'Choose an option (1, 2, or 3): ',
+            ['1', '2', '3'],
+            'Invalid choice. Please enter 1, 2, or 3.',
+            input_fn=safe_input
+        )
+
+        if choice == '1':
+            make_loan_payment(loan_id=record_id, payment_amount=min(payment_amount, remaining_balance), is_partial=False)
+        elif choice == '2':
+            result = mark_loan_payments_as_already_paid(record_id, due_count)
+            print(f"Marked {result['payment_count']} payment(s) as already paid without adding expense records.")
+            print(f"Remaining balance: {format_currency(result['remaining_balance'])}")
+            if result['status'] == 'paid':
+                print('This loan is now fully paid.')
+            else:
+                print(f"Next due date updated to: {result['next_due_date']}")
+        else:
+            print('Loan payment skipped. No expense was added.')
