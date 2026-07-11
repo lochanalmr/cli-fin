@@ -10,7 +10,8 @@ Clifin is a simple command line tool for tracking finances. All databases are cr
 - Entering other assets such as fixed deposits, investments, and other assets
 - Updating value of assets
 - Updating transaction details (type, category, value)
-- Managing subscriptions (add, update, remove and auto debit as expense at application startup)
+- Managing subscriptions (add, update, remove, and auto debit as expense at application startup)
+- Managing loans (add, update, remove, and auto debit as expense at application startup)
 
 ## Technology stack
 - Python 3.14
@@ -20,7 +21,7 @@ Clifin is a simple command line tool for tracking finances. All databases are cr
 ## Using the program
 Inside the folder with the python script inside your preferred terminal emulator, and run `python clifin.py`. 
 
-Upon entering your first transaction, a database called `storage.db` will be created. When you add assets through the main menu, `assets.db` will be created. After creating subscription entries, `subscriptions.db` will be created. Do not delete these files, unless you want to completely delete all stored data. `user_config.json` contains the name entered in the first run, and can be changed if required by editing it.
+Upon entering your first transaction, a database called `storage.db` will be created. When you add assets through the main menu, `assets.db` will be created. After creating subscription entries, `subscriptions.db` will be created. `loans.db` will be created after using loan management related functionality. Do not delete these files, unless you want to completely delete all stored data. `user_config.json` contains the name entered in the first run, and can be changed if required by editing it.
 
 When data is exported as a .csv file, it will be available within the same folder the program runs from. The database file will be named in this format: `transactions_[year]_[month no.]_[month name]`. The .csv file will include the exact date and time of when the transaction was entered, income/expense, category of income/expense, and amount of the transaction
 
@@ -29,4 +30,6 @@ When data is exported as a .csv file, it will be available within the same folde
 
 `assets.db` contains assets data. <br>It contains: `id` (automatically incremented), `name`, `asset_type`, `amount`, `created_at`.
 
-`subscriptions.db` contains subscriptions data. <br>It contains: `id` (automatically incremented), `name`, `amount`, `interval`, `next_due`, `created_at`. 
+`subscriptions.db` contains subscriptions data. <br>It contains: `id` (automatically incremented), `name`, `amount`, `interval`, `next_due`, `created_at`.
+
+`loans.db` contains loans data. <br>It contains: `id` (automatically incremented), `name`, `principal`, `interest_rate`, `term_months`, `monthly_payment`, `next_due`, `created_at`. 
