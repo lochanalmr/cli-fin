@@ -1,6 +1,8 @@
 import csv
 from datetime import datetime
 
+from assets import add_asset
+
 from shared import (
     EXPENSE_CATEGORIES,
     STORAGE_DB,
@@ -29,8 +31,8 @@ def _get_transaction_categories(transaction_type):
         return {
             '1': 'Salary',
             '2': 'Gift',
-            '3': 'Interest',
-            '4': 'Reversal',
+            '3': 'Interest/Dividends',
+            '4': 'Reverse Transaction',
             '5': 'Other'
         }
     return EXPENSE_CATEGORIES
@@ -106,6 +108,8 @@ def data_entry():
         amount = get_positive_float("Enter amount: ")
 
         data_write(amount, category, transaction_type)
+        if transaction_type == 'expense' and category == 'Asset Purchase':
+            add_asset(amount=amount)
 
         if not get_confirmation("Do you want to add another entry? (y/n): "):
             return

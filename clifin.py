@@ -1,7 +1,7 @@
 from shared import VERSION, safe_input
 from greeting import ensure_and_greet_user
 from transactions import data_entry, data_read, manage_transaction
-from assets import add_asset_entry, update_asset_value
+from assets import add_asset, update_asset_value
 from financial_status import view_current_financial_status
 from help_module import help
 from subscriptions import add_subscription, manage_subscriptions, process_due_subscriptions
@@ -9,8 +9,8 @@ from subscriptions import add_subscription, manage_subscriptions, process_due_su
 
 if __name__ == '__main__':
     ensure_and_greet_user()
-    process_due_subscriptions()
     print(f"You are currently running CliFin v{VERSION}")
+    process_due_subscriptions()
 
     while True:
         print("\nMain Menu")
@@ -30,7 +30,7 @@ if __name__ == '__main__':
         if choice == '1':
             data_entry()
         elif choice == '2':
-            add_asset_entry()
+            add_asset()
         elif choice == '3':
             update_asset_value()
         elif choice == '4':

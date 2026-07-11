@@ -365,9 +365,7 @@ def process_due_subscriptions():
 
                     print(f"Added {len(pending_due_dates)} due expense(s) for subscription '{name}'.")
 
-                    next_due_date_obj = pending_due_dates[-1]
-                    if next_due_date_obj < today:
-                        next_due_date_obj = calculate_next_due_date(next_due_date_obj, frequency)
+                    next_due_date_obj = calculate_next_due_date(pending_due_dates[-1], frequency)
                     if next_due_date_obj is None:
                         continue
 

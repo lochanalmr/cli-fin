@@ -8,14 +8,19 @@ ASSETS_DB = 'assets.db'
 SUBSCRIPTIONS_DB = 'subscriptions.db'
 CONFIG_FILE = 'user_config.json'
 
-VERSION = '1.5'
+VERSION = '1.6'
 
 EXPENSE_CATEGORIES = {
     '1': 'Entertainment',
     '2': 'Food',
     '3': 'Asset Purchase',
     '4': 'Travel',
-    '5': 'Other',
+    '5': 'Bank Charge',
+    '6': 'Utilities',
+    '7': 'Health and Fitness',
+    '8': 'Housing',
+    '9': 'Loan Payments',
+    '10': 'Other',
 }
 
 _DATABASE_SCHEMAS = {

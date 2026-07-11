@@ -10,23 +10,27 @@ from shared import (
 )
 
 
-def add_asset_entry():
-    print("\nAsset Types:")
-    print("1. Fixed Deposit")
-    print("2. Investment")
-    print("3. Other Asset")
+ASSET_TYPES = {
+    '1': 'Fixed Deposit',
+    '2': 'Investment',
+    '3': 'Other Asset',
+}
 
-    asset_choices = {
-        '1': 'Fixed Deposit',
-        '2': 'Investment',
-        '3': 'Other Asset'
-    }
+
+def get_asset_type():
+    print("\nAsset Types:")
+    for code, asset_type in ASSET_TYPES.items():
+        print(f"{code}. {asset_type}")
     asset_choice = get_choice(
         "Enter asset type code (1, 2, or 3): ",
-        ['1', '2', '3'],
+        list(ASSET_TYPES.keys()),
         "Invalid choice. Please enter 1, 2, or 3."
     )
-    asset_type = asset_choices[asset_choice]
+    return ASSET_TYPES[asset_choice]
+
+
+def add_asset(amount=None):
+    asset_type = get_asset_type()
 
     while True:
         asset_name = safe_input("Enter asset name/description: ").strip()
@@ -34,7 +38,8 @@ def add_asset_entry():
             break
         print("Asset name cannot be empty.")
 
-    amount = get_positive_float("Enter amount: ")
+    if amount is None:
+        amount = get_positive_float("Enter amount: ")
 
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with db_cursor(ASSETS_DB, commit=True) as c:
