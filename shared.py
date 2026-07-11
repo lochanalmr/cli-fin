@@ -11,7 +11,7 @@ SUBSCRIPTIONS_DB = 'subscriptions.db'
 LOANS_DB = 'loans.db'
 CONFIG_FILE = 'user_config.json'
 
-VERSION = '1.7'
+VERSION = '1.8'
 
 EXPENSE_CATEGORIES = {
     '1': 'Entertainment',
@@ -92,19 +92,27 @@ def _initialize_database(db_name, schema):
     return conn
 
 
-def init_db(db_name=STORAGE_DB):
+def init_db(db_name=None):
+    if db_name is None:
+        db_name = STORAGE_DB
     return _initialize_database(db_name, _DATABASE_SCHEMAS[STORAGE_DB])
 
 
-def init_assets_db(db_name=ASSETS_DB):
+def init_assets_db(db_name=None):
+    if db_name is None:
+        db_name = ASSETS_DB
     return _initialize_database(db_name, _DATABASE_SCHEMAS[ASSETS_DB])
 
 
-def init_subscriptions_db(db_name=SUBSCRIPTIONS_DB):
+def init_subscriptions_db(db_name=None):
+    if db_name is None:
+        db_name = SUBSCRIPTIONS_DB
     return _initialize_database(db_name, _DATABASE_SCHEMAS[SUBSCRIPTIONS_DB])
 
 
-def init_loans_db(db_name=LOANS_DB):
+def init_loans_db(db_name=None):
+    if db_name is None:
+        db_name = LOANS_DB
     return _initialize_database(db_name, _DATABASE_SCHEMAS[LOANS_DB])
 
 

@@ -31,7 +31,7 @@ LOAN_FREQUENCIES = {
 
 def _insert_loan_record(name, payment_amount, frequency, term_count, total_loan_value, first_due_date, status='active'):
     """Insert a new loan record into the database."""
-    conn = init_loans_db()
+    conn = init_loans_db(LOANS_DB)
     c = conn.cursor()
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     c.execute(
@@ -123,7 +123,7 @@ def add_loan():
 
 def _fetch_loans():
     """Fetch all loans from the database."""
-    conn = init_loans_db()
+    conn = init_loans_db(LOANS_DB)
     c = conn.cursor()
     c.execute(
         "SELECT id, name, payment_amount, frequency, term_count, total_loan_value, remaining_balance, first_due_date, next_due_date, last_payment_at, status, created_at FROM loans ORDER BY id"
@@ -244,7 +244,7 @@ def update_loan():
         print(f'  Calculated total loan value: {format_currency(new_total_loan_value)}')
 
         if get_confirmation('Confirm this edit? (y/n): ', input_fn=safe_input):
-            conn = init_loans_db()
+            conn = init_loans_db(LOANS_DB)
             c = conn.cursor()
             # Update next_due_date to match first_due_date if it changed
             c.execute(
@@ -312,7 +312,7 @@ def mark_loan_payments_as_already_paid(loan_id, payment_count):
         pass
 
     processed_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = init_loans_db()
+    conn = init_loans_db(LOANS_DB)
     c = conn.cursor()
     c.execute(
         """UPDATE loans SET remaining_balance=?, next_due_date=?, last_payment_at=?,
@@ -367,7 +367,7 @@ def apply_loan_payment_to_loan(loan_id, payment_amount, advance_due_date=False):
             pass
 
     created_at_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = init_loans_db()
+    conn = init_loans_db(LOANS_DB)
     c = conn.cursor()
     c.execute(
         """UPDATE loans SET remaining_balance=?, next_due_date=?, last_payment_at=?, 
@@ -492,7 +492,7 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
             pass
 
     # Update loan record
-    conn = init_loans_db()
+    conn = init_loans_db(LOANS_DB)
     c = conn.cursor()
     c.execute(
         """UPDATE loans SET remaining_balance=?, next_due_date=?, last_payment_at=?, 
@@ -534,7 +534,7 @@ def delete_loan():
 
     confirmation = safe_input('Type y to confirm deletion (this cannot be undone): ').strip().lower()
     if confirmation in {'y', 'yes'}:
-        conn = init_loans_db()
+        conn = init_loans_db(LOANS_DB)
         c = conn.cursor()
         c.execute("DELETE FROM loans WHERE id=?", (loan_id,))
         conn.commit()

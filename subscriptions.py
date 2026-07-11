@@ -28,7 +28,7 @@ def _format_date(value):
 
 
 def _insert_subscription_record(name, amount, frequency, start_date, category, status='active'):
-    conn = init_subscriptions_db()
+    conn = init_subscriptions_db(SUBSCRIPTIONS_DB)
     c = conn.cursor()
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     c.execute(
@@ -293,6 +293,45 @@ def collect_pending_due_dates(current_due_date, today, frequency):
     return pending
 
 
+def mark_subscription_payments_as_already_paid(subscription_id, payment_count):
+    rows = _fetch_subscriptions()
+    selected_subscription = next((row for row in rows if row[0] == subscription_id), None)
+    if not selected_subscription:
+        raise ValueError(f'Subscription with id {subscription_id} was not found.')
+
+    (record_id, name, amount, frequency, start_date, next_due_date, last_processed_at, category, status, created_at) = selected_subscription
+
+    normalized_count = int(payment_count)
+    if normalized_count <= 0:
+        raise ValueError('Payment count must be greater than 0.')
+
+    new_next_due_date = next_due_date
+    try:
+        current_due = datetime.strptime(next_due_date, '%d-%m-%Y').date()
+        for _ in range(normalized_count):
+            next_due = calculate_next_due_date(current_due, frequency)
+            if next_due is None:
+                break
+            current_due = next_due
+        new_next_due_date = current_due.strftime('%d-%m-%Y')
+    except (ValueError, TypeError):
+        pass
+
+    processed_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with db_cursor(SUBSCRIPTIONS_DB, commit=True) as c:
+        c.execute(
+            "UPDATE subscriptions SET next_due_date=?, last_processed_at=? WHERE id=?",
+            (new_next_due_date, processed_at, record_id)
+        )
+
+    return {
+        'subscription_id': record_id,
+        'payment_count': normalized_count,
+        'next_due_date': new_next_due_date,
+        'status': status,
+    }
+
+
 def process_due_subscriptions():
     with db_cursor(SUBSCRIPTIONS_DB, commit=True) as c:
         c.execute(
@@ -306,7 +345,6 @@ def process_due_subscriptions():
         today = date.today()
         storage_expenses = []
         subscription_updates = []
-        subscription_inserts = []
 
         for record_id, name, amount, frequency, start_date, next_due_date, category, created_at_value in rows:
             try:
@@ -321,38 +359,44 @@ def process_due_subscriptions():
                 continue
 
             pending_due_dates = collect_pending_due_dates(due_date, today, frequency)
-            if pending_due_dates:
-                prompt_for_transaction = should_prompt_for_due_subscription(
-                    due_date,
-                    created_at_value,
-                    today=today,
-                    pending_due_dates=pending_due_dates
-                )
-                if prompt_for_transaction:
-                    should_add = safe_input(f"Subscription '{name}' has {len(pending_due_dates)} pending debit(s). Add all pending expenses at once? (y/n): ").strip().lower()
-                    should_add_expense = should_add in {'y', 'yes'}
-                else:
-                    should_add_expense = True
+            if not pending_due_dates:
+                continue
 
-                processing_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                if should_add_expense:
-                    for pending_due in pending_due_dates:
-                        storage_expenses.append((-abs(amount), category, 'expense', processing_time))
+            due_count = len(pending_due_dates)
+            total_due = amount * due_count
+            print(f"\nSubscription '{name}' is due for {due_count} pending payment(s).")
+            if due_count > 1:
+                first_due = pending_due_dates[0].strftime('%d-%m-%Y')
+                last_due = pending_due_dates[-1].strftime('%d-%m-%Y')
+                print(f"This subscription has {due_count} pending payment(s) from {first_due} through {last_due}.")
+                print("Choose whether to record a payment now or mark previous payments as already paid.")
+            else:
+                print("Choose whether to record this payment now or mark it as already paid.")
 
-                    print(f"Added {len(pending_due_dates)} due expense(s) for subscription '{name}'.")
+            print("1. Make one payment now and record it as this month's expense")
+            print(f"2. Mark all {due_count} pending payment(s) as already paid without adding expense records ({format_currency(total_due)})")
+            print("3. Skip for now")
+            choice = get_choice(
+                'Choose an option (1, 2, or 3): ',
+                ['1', '2', '3'],
+                'Invalid choice. Please enter 1, 2, or 3.',
+                input_fn=safe_input
+            )
 
-                    next_due_date_obj = calculate_next_due_date(pending_due_dates[-1], frequency)
-                    if next_due_date_obj is None:
-                        continue
+            processing_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if choice == '1':
+                storage_expenses.append((-abs(amount), category, 'expense', processing_time))
+                print(f"Recorded one expense for subscription '{name}'.")
 
-                    subscription_updates.append((processing_time, record_id))
-                    subscription_inserts.append((
-                        name, amount, frequency, start_date,
-                        next_due_date_obj.strftime('%Y-%m-%d'), None, category, 'active', processing_time
-                    ))
-                else:
-                    subscription_updates.append((processing_time, record_id))
-                    print('Subscription skipped. No expense was added.')
+                next_due_date_obj = calculate_next_due_date(due_date, frequency)
+                if next_due_date_obj is not None:
+                    subscription_updates.append((next_due_date_obj.strftime('%Y-%m-%d'), processing_time, record_id))
+            elif choice == '2':
+                result = mark_subscription_payments_as_already_paid(record_id, due_count)
+                print(f"Marked {result['payment_count']} payment(s) as already paid without adding expense records.")
+                print(f"Next due date updated to: {result['next_due_date']}")
+            else:
+                print('Subscription skipped. No expense was added.')
 
         if storage_expenses:
             with db_cursor(STORAGE_DB, commit=True) as storage_c:
@@ -361,17 +405,8 @@ def process_due_subscriptions():
                     storage_expenses
                 )
 
-        for last_processed_at, record_id in subscription_updates:
+        for next_due_date_value, last_processed_at, record_id in subscription_updates:
             c.execute(
-                "UPDATE subscriptions SET status='processed', last_processed_at=? WHERE id=?",
-                (last_processed_at, record_id)
-            )
-
-        if subscription_inserts:
-            c.executemany(
-                """
-                INSERT INTO subscriptions (name, amount, frequency, start_date, next_due_date, last_processed_at, category, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                subscription_inserts
+                "UPDATE subscriptions SET next_due_date=?, last_processed_at=? WHERE id=?",
+                (next_due_date_value, last_processed_at, record_id)
             )
