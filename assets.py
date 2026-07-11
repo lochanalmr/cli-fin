@@ -3,9 +3,12 @@ from datetime import datetime
 from shared import (
     ASSETS_DB,
     db_cursor,
+    format_currency,
+    format_table,
     get_choice,
     get_int_input,
     get_positive_float,
+    print_table,
     safe_input,
 )
 
@@ -30,6 +33,10 @@ def get_asset_type():
 
 
 def add_asset(amount=None):
+    print("\n" + "=" * 60)
+    print("Add Asset")
+    print("=" * 60)
+    
     asset_type = get_asset_type()
 
     while True:
@@ -57,18 +64,23 @@ def list_assets(db_name=ASSETS_DB):
 
 
 def update_asset_value(asset_id=None, new_amount=None, db_name=ASSETS_DB):
-    print("\nUpdate Asset Value")
+    print("\n" + "=" * 60)
+    print("Update Asset Value")
+    print("=" * 60)
+    
     assets = list_assets(db_name)
 
     if not assets:
         print("No assets available to update.")
         return False
 
-    print("Available assets:")
-    print(f"{'ID':<3} | {'Name':<20} | {'Type':<15} | {'Amount':>10}")
-    print("-" * 60)
+    headers = ['ID', 'Name', 'Type', 'Amount']
+    table_rows = []
     for record_id, name, asset_type, amount in assets:
-        print(f"{record_id:<3} | {name:<20} | {asset_type:<15} | {amount:>10.2f}")
+        table_rows.append([record_id, name, asset_type, format_currency(amount)])
+    
+    print("Available assets:")
+    print_table(headers, table_rows)
 
     if asset_id is None:
         asset_id = get_int_input(

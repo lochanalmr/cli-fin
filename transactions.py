@@ -8,12 +8,15 @@ from shared import (
     EXPENSE_CATEGORIES,
     STORAGE_DB,
     db_cursor,
+    format_currency,
+    format_table,
     get_choice,
     get_confirmation,
     get_int_input,
     get_optional_choice,
     get_optional_positive_float,
     get_positive_float,
+    print_table,
     safe_input,
 )
 
@@ -74,11 +77,13 @@ def data_entry():
                 expense_totals[category] = expense_totals.get(category, 0.0) + display_amount
                 total_expenses += display_amount
 
-        print("\nQuick Summary:")
-        print(f"You have spent LKR {total_expenses:.2f} in {month_name}.")
+        print("\n" + "=" * 60)
+        print("Quick Summary")
+        print("=" * 60)
+        print(f"You have spent {format_currency(total_expenses)} in {month_name}.")
         if expense_totals:
             top_category, top_amount = max(expense_totals.items(), key=lambda item: item[1])
-            print(f"Top expense category: {top_category} (Amount: {top_amount:.2f})")
+            print(f"Top expense category: {top_category} ({format_currency(top_amount)})")
         else:
             print("Top expense category: None")
 
@@ -119,9 +124,13 @@ def data_entry():
             active_loans = [row for row in rows if row[10] == 'active']
             if active_loans:
                 print('\nSelect the loan this payment is for:')
+                headers = ['ID', 'Name', 'Remaining']
+                loan_rows = []
                 for loan_row in active_loans:
                     loan_id, loan_name, payment_amount, frequency, term_count, total_value, remaining_balance, *_ = loan_row
-                    print(f"{loan_id}. {loan_name} | Remaining: LKR {remaining_balance:.2f}")
+                    loan_rows.append([loan_id, loan_name, format_currency(remaining_balance)])
+                print_table(headers, loan_rows)
+                
                 loan_choice = get_choice(
                     'Enter loan ID: ',
                     [str(row[0]) for row in active_loans],
@@ -150,20 +159,29 @@ def _display_transaction_rows(rows):
         print("No transactions found.")
         return False
 
-    print("\nAvailable transactions")
-    print(f"{'ID':<3} | {'Value':>10} | {'Type':<7} | {'Category':<12}")
-    print("-" * 44)
+    headers = ['ID', 'Value', 'Type', 'Category']
+    table_rows = []
     for record_id, amount, category, transaction_type, _ in rows:
-        print(f"{record_id:<3} | {abs(amount):>10.2f} | {transaction_type:<7} | {category:<12}")
+        table_rows.append([
+            record_id,
+            format_currency(amount),
+            transaction_type,
+            category
+        ])
+    
+    print("\nAvailable transactions")
+    print_table(headers, table_rows)
     return True
 
 
 def _show_selected_transaction(transaction):
     record_id, amount, category, transaction_type, _ = transaction
-    print("\nSelected transaction details")
-    print(f"Selected transaction id: {record_id}")
-    print(f"Transaction value: {abs(amount):.2f}")
-    print(f"Transaction type: {transaction_type.lower()}")
+    print("\n" + "=" * 60)
+    print("Selected transaction details")
+    print("=" * 60)
+    print(f"Transaction ID:        {record_id}")
+    print(f"Transaction value:    {format_currency(amount)}")
+    print(f"Transaction type:     {transaction_type.lower()}")
     print(f"Transaction category: {category}")
 
 
@@ -190,7 +208,9 @@ def _fetch_transactions(filter_type=None, filter_value=None):
 
 
 def manage_transaction():
-    print("\nManage transaction")
+    print("\n" + "=" * 60)
+    print("Manage transaction")
+    print("=" * 60)
 
     view_choice = get_choice(
         "Would you like to (1) view all transactions or (2) filter transactions? ",
@@ -282,8 +302,8 @@ def manage_transaction():
         print("\nLeave a field blank to keep the current value.")
 
         amount_value = get_optional_positive_float(
-            f"Edit amount [{abs(existing_amount):.2f}]: ",
-            existing_amount
+            f"Edit amount [{format_currency(abs(existing_amount))}]: ",
+            abs(existing_amount)
         )
 
         new_type = get_optional_choice(
@@ -351,7 +371,9 @@ def export_to_csv(rows, year, month):
 
 
 def data_read():
-    print("\nView Historical Data")
+    print("\n" + "=" * 60)
+    print("View Historical Data")
+    print("=" * 60)
 
     year = get_int_input(
         "Enter year: ",
@@ -407,30 +429,44 @@ def data_read():
                 expense_totals[category] = expense_totals.get(category, 0.0) + display_amount
                 total_expenses += display_amount
 
-        print(f"\nSummary for {month_name} {year}")
-        print("Income:")
+        print(f"\n{'=' * 60}")
+        print(f"Summary for {month_name} {year}")
+        print("=" * 60)
+        
+        print("\nIncome:")
         if income_totals:
-            for category, total in sorted(income_totals.items()):
-                print(f"- {category}: {total:.2f}")
+            headers = ['Category', 'Amount']
+            income_rows = [[cat, format_currency(amt)] for cat, amt in sorted(income_totals.items())]
+            print_table(headers, income_rows)
         else:
             print("- None")
-        print(f"Total income: {total_income:.2f}")
+        print(f"Total income: {format_currency(total_income)}")
 
         print("\nExpenses:")
         if expense_totals:
-            for category, total in sorted(expense_totals.items()):
-                print(f"- {category}: {total:.2f}")
+            headers = ['Category', 'Amount']
+            expense_rows = [[cat, format_currency(amt)] for cat, amt in sorted(expense_totals.items())]
+            print_table(headers, expense_rows)
         else:
             print("- None")
-        print(f"Total expenses: {total_expenses:.2f}")
-        print(f"Net: {total_income - total_expenses:.2f}")
+        print(f"Total expenses: {format_currency(total_expenses)}")
+        print(f"Net: {format_currency(total_income - total_expenses)}")
 
     if report_choice in {'2', '3'}:
-        print(f"\nRaw data for {month_name} {year}")
-        print(f"{'ID':<3} | {'Date':<19} | {'Type':<7} | {'Category':<12} | {'Amount':>10}")
-        print("-" * 72)
+        print(f"\n{'=' * 60}")
+        print(f"Raw data for {month_name} {year}")
+        print("=" * 60)
+        headers = ['ID', 'Date', 'Type', 'Category', 'Amount']
+        table_rows = []
         for record_id, amount, category, transaction_type, created_at in rows:
-            print(f"{record_id:<3} | {created_at:<19} | {transaction_type:<7} | {category:<12} | {amount:>10.2f}")
+            table_rows.append([
+                record_id,
+                created_at,
+                transaction_type,
+                category,
+                format_currency(amount)
+            ])
+        print_table(headers, table_rows)
 
         if get_confirmation("\nWould you like to export this data as CSV? (y/n): "):
             export_to_csv(rows, year, month)

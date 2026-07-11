@@ -1,8 +1,10 @@
-from shared import ASSETS_DB, STORAGE_DB, db_cursor
+from shared import ASSETS_DB, STORAGE_DB, db_cursor, format_currency, format_table, print_table
 
 
 def view_current_financial_status():
-    print("\nView Financial Status")
+    print("\n" + "=" * 60)
+    print("View Financial Status")
+    print("=" * 60)
 
     with db_cursor(STORAGE_DB) as c:
         c.execute("SELECT amount, type FROM storage")
@@ -19,7 +21,7 @@ def view_current_financial_status():
 
     spendable_balance = total_income - total_expenses
 
-    print(f"Spendable balance: LKR {spendable_balance:.2f}")
+    print(f"\nSpendable balance: {format_currency(spendable_balance)}")
 
     with db_cursor(ASSETS_DB) as asset_cursor:
         asset_cursor.execute("SELECT name, asset_type, amount FROM assets ORDER BY created_at")
@@ -29,15 +31,16 @@ def view_current_financial_status():
     for _, asset_type, amount in asset_rows:
         asset_totals[asset_type] = asset_totals.get(asset_type, 0.0) + abs(amount)
 
-    print("Other assets:")
+    print("\nOther assets:")
     if asset_rows:
-        for asset_type, total in sorted(asset_totals.items()):
-            print(f"- {asset_type}: LKR {total:.2f}")
+        headers = ['Asset Type', 'Total Amount']
+        table_rows = [[asset_type, format_currency(total)] for asset_type, total in sorted(asset_totals.items())]
+        print_table(headers, table_rows)
     else:
         print("- None")
 
     other_assets_total = sum(asset_totals.values())
     net_asset_value = spendable_balance + other_assets_total
-    print(f"Total other assets: LKR {other_assets_total:.2f}")
-    print(f"Estimated net asset value: LKR {net_asset_value:.2f}")
+    print(f"\nTotal other assets: {format_currency(other_assets_total)}")
+    print(f"Estimated net asset value: {format_currency(net_asset_value)}")
     return

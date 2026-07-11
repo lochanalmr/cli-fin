@@ -2,8 +2,12 @@ from datetime import date, datetime, timedelta
 
 from shared import (
     EXPENSE_CATEGORIES,
+    LOANS_DB,
     STORAGE_DB,
+    calculate_next_due_date,
     db_cursor,
+    format_currency,
+    format_table,
     get_choice,
     get_confirmation,
     get_int_input,
@@ -11,92 +15,18 @@ from shared import (
     get_optional_date,
     get_optional_positive_float,
     get_positive_float,
+    init_loans_db,
+    parse_date_ddmmyyyy,
+    print_table,
     safe_input,
 )
 
-
-LOANS_DB = 'loans.db'
 
 LOAN_FREQUENCIES = {
     '1': 'yearly',
     '2': 'monthly',
     '3': 'weekly',
 }
-
-
-def init_loans_db(db_name=None):
-    """Initialize the loans database."""
-    import sqlite3 as sql
-    db_name = db_name or LOANS_DB
-    conn = sql.connect(db_name)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS loans (
-            id INTEGER PRIMARY KEY,
-            name TEXT,
-            payment_amount REAL,
-            frequency TEXT,
-            term_count INTEGER,
-            total_loan_value REAL,
-            remaining_balance REAL,
-            first_due_date TEXT,
-            next_due_date TEXT,
-            last_payment_at TEXT,
-            status TEXT,
-            created_at TEXT
-        )
-    """)
-    conn.commit()
-    return conn
-
-
-def calculate_next_due_date(current_due_date, frequency):
-    """Calculate the next due date based on frequency."""
-    if not isinstance(current_due_date, date):
-        return None
-
-    freq = (frequency or '').strip().lower()
-    if freq == 'yearly':
-        year = current_due_date.year + 1
-        try:
-            return date(year, current_due_date.month, current_due_date.day)
-        except ValueError:
-            return date(year, 3, 1)
-
-    if freq == 'monthly':
-        month = current_due_date.month + 1
-        year = current_due_date.year
-        while month > 12:
-            month -= 12
-            year += 1
-        try:
-            return date(year, month, current_due_date.day)
-        except ValueError:
-            # Handle end-of-month cases
-            if month > 12:
-                return date(year + 1, 1, 1)
-            return date(year, month + 1, 1)
-
-    if freq == 'weekly':
-        return current_due_date + timedelta(days=7)
-
-    return None
-
-
-def parse_loan_date(value):
-    """Parse a date string in DD-MM-YYYY format."""
-    import re
-    try:
-        if not isinstance(value, str):
-            return None
-        if not re.fullmatch(r"\d{2}-\d{2}-\d{4}", value):
-            return None
-        day_str, month_str, year_str = value.split('-')
-        day = int(day_str)
-        month = int(month_str)
-        year = int(year_str)
-        return date(year, month, day)
-    except ValueError:
-        return None
 
 
 def _insert_loan_record(name, payment_amount, frequency, term_count, total_loan_value, first_due_date, status='active'):
@@ -117,7 +47,9 @@ def _insert_loan_record(name, payment_amount, frequency, term_count, total_loan_
 
 def add_loan():
     """Add a new loan. Total loan value is calculated from payment amount and term."""
-    print('\n=== Add Loan ===')
+    print('\n' + '=' * 60)
+    print('Add Loan')
+    print('=' * 60)
     
     # Get loan name
     while True:
@@ -157,20 +89,20 @@ def add_loan():
 
     # Calculate total loan value
     total_loan_value = payment_amount * term_count
-    print(f'\nCalculated total loan value: LKR {total_loan_value:.2f}')
-    print(f'({term_count} payments x LKR {payment_amount:.2f} per {frequency})')
+    print(f'\nCalculated total loan value: {format_currency(total_loan_value)}')
+    print(f'({term_count} payments x {format_currency(payment_amount)} per {frequency})')
     
     if abs(total_loan_value - credited_amount) > 0.01:
-        print(f'Note: Total repayment ({total_loan_value:.2f}) differs from credited amount ({credited_amount:.2f})')
+        print(f'Note: Total repayment ({format_currency(total_loan_value)}) differs from credited amount ({format_currency(credited_amount)})')
         if total_loan_value > credited_amount:
-            print(f'This implies interest/fees of LKR {total_loan_value - credited_amount:.2f}')
+            print(f'This implies interest/fees of {format_currency(total_loan_value - credited_amount)}')
         else:
             print(f'Warning: Credited amount exceeds total repayment - please verify the figures')
 
     # Get first payment due date
     while True:
         first_due_date_input = safe_input('Enter first payment due date (DD-MM-YYYY): ').strip()
-        parsed_date = parse_loan_date(first_due_date_input)
+        parsed_date = parse_date_ddmmyyyy(first_due_date_input)
         if parsed_date is not None:
             first_due_date = parsed_date.strftime('%d-%m-%Y')
             break
@@ -186,7 +118,7 @@ def add_loan():
             "INSERT INTO storage (amount, category, type, created_at) VALUES (?, ?, ?, ?)",
             (abs(credited_amount), 'Loan Income', 'income', created_at_time)
         )
-    print(f'LKR {credited_amount:.2f} recorded as income in transactions.')
+    print(f'{format_currency(credited_amount)} recorded as income in transactions.')
 
 
 def _fetch_loans():
@@ -207,18 +139,33 @@ def _display_loans(rows):
         print('No loans found.')
         return False
 
-    print('\nAvailable Loans')
-    print(f"{'ID':<3} | {'Name':<20} | {'Payment':>10} | {'Freq':<8} | {'Term':>5} | {'Total':>12} | {'Remaining':>12} | {'Next Due':<10} | {'Status':<10}")
-    print('-' * 115)
+    headers = ['ID', 'Name', 'Payment', 'Freq', 'Term', 'Total', 'Remaining', 'Next Due', 'Status']
+    table_rows = []
     for record in rows:
         record_id, name, payment_amount, frequency, term_count, total_loan_value, remaining_balance, first_due_date, next_due_date, last_payment_at, status, created_at = record
-        print(f"{record_id:<3} | {name:<20} | {payment_amount:>10.2f} | {frequency:<8} | {term_count:>5} | {total_loan_value:>12.2f} | {remaining_balance:>12.2f} | {next_due_date:<10} | {status:<10}")
+        table_rows.append([
+            record_id,
+            name,
+            format_currency(payment_amount),
+            frequency,
+            term_count,
+            format_currency(total_loan_value),
+            format_currency(remaining_balance),
+            next_due_date,
+            status
+        ])
+    
+    print('\nAvailable Loans')
+    print_table(headers, table_rows)
     return True
 
 
 def update_loan():
     """Update loan details (payment amount, term, etc.). Recalculates total loan value."""
-    print('\n=== Update Loan ===')
+    print('\n' + '=' * 60)
+    print('Update Loan')
+    print('=' * 60)
+    
     rows = _fetch_loans()
     if not _display_loans(rows):
         return
@@ -246,7 +193,7 @@ def update_loan():
 
         # Edit payment amount
         new_payment_amount = get_optional_positive_float(
-            f'Edit payment amount per {existing_frequency} [{existing_payment_amount:.2f}]: ',
+            f'Edit payment amount per {existing_frequency} [{format_currency(existing_payment_amount)}]: ',
             existing_payment_amount,
             input_fn=safe_input
         )
@@ -282,7 +229,7 @@ def update_loan():
         new_first_due_date = get_optional_date(
             f'Edit first payment due date [{existing_first_due_date}] (DD-MM-YYYY): ',
             existing_first_due_date,
-            parse_loan_date,
+            parse_date_ddmmyyyy,
             '%d-%m-%Y',
             'Invalid date. Please use DD-MM-YYYY with a valid day, month, and year.',
             input_fn=safe_input
@@ -292,9 +239,9 @@ def update_loan():
         new_total_loan_value = new_payment_amount * new_term_count
         
         print(f'\nUpdated loan summary:')
-        print(f'  Payment amount: LKR {new_payment_amount:.2f} per {new_frequency}')
+        print(f'  Payment amount: {format_currency(new_payment_amount)} per {new_frequency}')
         print(f'  Term: {new_term_count} payments')
-        print(f'  Calculated total loan value: LKR {new_total_loan_value:.2f}')
+        print(f'  Calculated total loan value: {format_currency(new_total_loan_value)}')
 
         if get_confirmation('Confirm this edit? (y/n): ', input_fn=safe_input):
             conn = init_loans_db()
@@ -372,7 +319,9 @@ def apply_loan_payment_to_loan(loan_id, payment_amount, advance_due_date=False):
 
 def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_over_balance=None):
     """Make a loan payment. Records as transaction and updates loan balance."""
-    print('\n=== Make Loan Payment ===')
+    print('\n' + '=' * 60)
+    print('Make Loan Payment')
+    print('=' * 60)
     
     rows = _fetch_loans()
     active_loans = [row for row in rows if row[10] == 'active']  # status is at index 10
@@ -408,9 +357,9 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
 
     # Determine payment amount
     if payment_amount is None:
-        print(f'\nRegular payment amount: LKR {payment_amount_regular:.2f} per {frequency}')
-        print(f'Remaining balance: LKR {remaining_balance:.2f}')
-        payment_input = safe_input(f'Enter payment amount (or press Enter for full payment of {payment_amount_regular:.2f}): ').strip()
+        print(f'\nRegular payment amount: {format_currency(payment_amount_regular)} per {frequency}')
+        print(f'Remaining balance: {format_currency(remaining_balance)}')
+        payment_input = safe_input(f'Enter payment amount (or press Enter for full payment of {format_currency(payment_amount_regular)}): ').strip()
         if not payment_input:
             payment_amount = min(payment_amount_regular, remaining_balance)
         else:
@@ -453,11 +402,11 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
         unpaid_portion = payment_amount_regular - payment_amount
         if carry_over_balance is None or carry_over_balance is False:
             # Ask user if they want to add unpaid portion to next payment
-            print(f'\nUnpaid portion of this payment: LKR {unpaid_portion:.2f}')
+            print(f'\nUnpaid portion of this payment: {format_currency(unpaid_portion)}')
             add_to_next = get_confirmation('Would you like to add this unpaid amount to the next payment due? (y/n): ', input_fn=safe_input)
             if add_to_next:
                 new_payment_amount_regular = payment_amount_regular + unpaid_portion
-                print(f'Next payment amount updated to: LKR {new_payment_amount_regular:.2f}')
+                print(f'Next payment amount updated to: {format_currency(new_payment_amount_regular)}')
         elif carry_over_balance > 0:
             # Carry over balance from previous partial payment
             new_payment_amount_regular = payment_amount_regular + carry_over_balance
@@ -485,8 +434,8 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
     conn.commit()
     conn.close()
 
-    print(f'\nPayment of LKR {payment_amount:.2f} recorded successfully.')
-    print(f'Remaining balance: LKR {new_remaining_balance:.2f}')
+    print(f'\nPayment of {format_currency(payment_amount)} recorded successfully.')
+    print(f'Remaining balance: {format_currency(new_remaining_balance)}')
     if advance_due_date:
         print(f'Next due date updated to: {new_next_due_date}')
     else:
@@ -498,7 +447,10 @@ def make_loan_payment(loan_id=None, payment_amount=None, is_partial=None, carry_
 
 def delete_loan():
     """Delete a loan record."""
-    print('\n=== Delete Loan ===')
+    print('\n' + '=' * 60)
+    print('Delete Loan')
+    print('=' * 60)
+    
     rows = _fetch_loans()
     if not _display_loans(rows):
         return
@@ -526,7 +478,9 @@ def delete_loan():
 def manage_loans():
     """Main loan management menu."""
     while True:
-        print('\n=== Loan Management ===')
+        print('\n' + '=' * 60)
+        print('Loan Management')
+        print('=' * 60)
         print('1. Add New Loan')
         print('2. Update Loan Details')
         print('3. Make Loan Payment')
@@ -575,7 +529,7 @@ def process_due_loan_payments():
 
         if due_date <= today and remaining_balance > 0:
             # Loan payment is due, prompt user
-            print(f"\nLoan payment of LKR {payment_amount:.2f} is due for '{name}' (Due: {next_due_date})")
+            print(f"\nLoan payment of {format_currency(payment_amount)} is due for '{name}' (Due: {next_due_date})")
             print("NOTE: The full amount will be recorded as an expense transaction.")
             should_pay = safe_input(f"Would you like to make a payment now? (y/n): ").strip().lower()
             if should_pay in {'y', 'yes'}:

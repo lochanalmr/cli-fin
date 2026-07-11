@@ -1,11 +1,13 @@
 from datetime import date, datetime, timedelta
-import re
 
 from shared import (
     EXPENSE_CATEGORIES,
     STORAGE_DB,
     SUBSCRIPTIONS_DB,
+    calculate_next_due_date,
     db_cursor,
+    format_currency,
+    format_table,
     get_choice,
     get_confirmation,
     get_int_input,
@@ -13,61 +15,16 @@ from shared import (
     get_optional_date,
     get_optional_positive_float,
     init_subscriptions_db,
+    parse_date_ddmmyyyy,
+    print_table,
     safe_input,
 )
-
-
-def parse_subscription_date(value):
-    try:
-        if not isinstance(value, str):
-            return None
-        if not re.fullmatch(r"\d{2}-\d{2}-\d{4}", value):
-            return None
-        day_str, month_str, year_str = value.split('-')
-        day = int(day_str)
-        month = int(month_str)
-        year = int(year_str)
-        return date(year, month, day)
-    except ValueError:
-        return None
 
 
 def _format_date(value):
     if isinstance(value, date):
         return value.strftime('%d-%m-%Y')
     return value
-
-
-def calculate_next_due_date(current_due_date, frequency):
-    if not isinstance(current_due_date, date):
-        return None
-
-    freq = (frequency or '').strip().lower()
-    if freq == 'yearly':
-        year = current_due_date.year + 1
-        try:
-            return date(year, current_due_date.month, current_due_date.day)
-        except ValueError:
-            return date(year, 3, 1)
-
-    if freq == 'monthly':
-        month = current_due_date.month + 1
-        year = current_due_date.year
-        while month > 12:
-            month -= 12
-            year += 1
-        try:
-            return date(year, month, current_due_date.day)
-        except ValueError:
-            return date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
-
-    if freq == 'weekly':
-        return current_due_date + timedelta(days=7)
-
-    if freq == 'daily':
-        return current_due_date + timedelta(days=1)
-
-    return None
 
 
 def _insert_subscription_record(name, amount, frequency, start_date, category, status='active'):
@@ -86,7 +43,10 @@ def _insert_subscription_record(name, amount, frequency, start_date, category, s
 
 
 def add_subscription():
-    print('\nAdd Subscription')
+    print('\n' + '=' * 60)
+    print('Add Subscription')
+    print('=' * 60)
+    
     while True:
         name = safe_input('Enter subscription name: ').strip()
         if name:
@@ -116,7 +76,7 @@ def add_subscription():
 
     while True:
         start_date_input = safe_input('Enter start date (DD-MM-YYYY): ').strip()
-        parsed_date = parse_subscription_date(start_date_input)
+        parsed_date = parse_date_ddmmyyyy(start_date_input)
         if parsed_date is not None:
             start_date = parsed_date
             break
@@ -151,16 +111,28 @@ def _display_subscriptions(rows):
         print('No subscriptions found.')
         return False
 
-    print('\nAvailable subscriptions')
-    print(f"{'ID':<3} | {'Name':<20} | {'Amount':>10} | {'Frequency':<8} | {'Next Due':<10} | {'Category':<12}")
-    print('-' * 88)
+    headers = ['ID', 'Name', 'Amount', 'Frequency', 'Next Due', 'Category']
+    table_rows = []
     for record_id, name, amount, frequency, start_date, next_due_date, last_processed_at, category, status, created_at in rows:
-        print(f"{record_id:<3} | {name:<20} | {amount:>10.2f} | {frequency:<8} | {next_due_date:<10} | {category:<12}")
+        table_rows.append([
+            record_id,
+            name,
+            format_currency(amount),
+            frequency,
+            next_due_date,
+            category
+        ])
+    
+    print('\nAvailable subscriptions')
+    print_table(headers, table_rows)
     return True
 
 
 def update_subscription():
-    print('\nUpdate Subscription')
+    print('\n' + '=' * 60)
+    print('Update Subscription')
+    print('=' * 60)
+    
     rows = _fetch_subscriptions()
     if not _display_subscriptions(rows):
         return
@@ -183,7 +155,7 @@ def update_subscription():
         new_name = name_input if name_input else existing_name
 
         new_amount = get_optional_positive_float(
-            f'Edit amount [{existing_amount:.2f}]: ',
+            f'Edit amount [{format_currency(existing_amount)}]: ',
             existing_amount,
             input_fn=safe_input
         )
@@ -204,7 +176,7 @@ def update_subscription():
         new_start_date = get_optional_date(
             f'Edit start date [{existing_start_date}] (DD-MM-YYYY): ',
             existing_start_date,
-            parse_subscription_date,
+            parse_date_ddmmyyyy,
             '%d-%m-%Y',
             'Invalid date. Please use DD-MM-YYYY with a valid day, month, and year.',
             input_fn=safe_input
@@ -235,7 +207,10 @@ def update_subscription():
 
 
 def discontinue_subscription():
-    print('\nDiscontinue Subscription')
+    print('\n' + '=' * 60)
+    print('Discontinue Subscription')
+    print('=' * 60)
+    
     rows = _fetch_subscriptions()
     if not _display_subscriptions(rows):
         return
@@ -259,7 +234,9 @@ def discontinue_subscription():
 
 def manage_subscriptions():
     while True:
-        print('\nManage Subscriptions')
+        print('\n' + '=' * 60)
+        print('Manage Subscriptions')
+        print('=' * 60)
         print('1. Add New Subscription')
         print('2. Update Existing Subscription')
         print('3. Discontinue Subscription')
@@ -337,7 +314,6 @@ def process_due_subscriptions():
             except (TypeError, ValueError):
                 try:
                     due_date = datetime.strptime(next_due_date, '%d-%m-%Y').date()
-                  
                 except ValueError:
                     continue
 
