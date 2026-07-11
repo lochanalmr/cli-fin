@@ -5,12 +5,14 @@ from assets import add_asset, update_asset_value
 from financial_status import view_current_financial_status
 from help_module import help
 from subscriptions import add_subscription, manage_subscriptions, process_due_subscriptions
+from loans import manage_loans, process_due_loan_payments
 
 
 if __name__ == '__main__':
     ensure_and_greet_user()
     print(f"You are currently running CliFin v{VERSION}")
     process_due_subscriptions()
+    process_due_loan_payments()
 
     while True:
         print("\nMain Menu")
@@ -23,9 +25,10 @@ if __name__ == '__main__':
         print("7. View Historical Data 🕒")
         print("8. View Financial Status 🗽")
         print("9. Explain Me! 😣")
-        print("10. Get Me Out of Here! 🚪")
+        print("10. Loan Management 💳")
+        print("11. Get Me Out of Here! 🚪")
 
-        choice = safe_input("Choose an option (1, 2, 3, 4, 5, 6, 7, 8, 9, or 10): ").strip()
+        choice = safe_input("Choose an option (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, or 11): ").strip()
 
         if choice == '1':
             data_entry()
@@ -46,9 +49,11 @@ if __name__ == '__main__':
         elif choice == '9':
             help()
         elif choice == '10':
+            manage_loans()
+        elif choice == '11':
             print("Thank you for using CliFin!😎")
             safe_input("Press [Enter] to exit.")
             break
         else:
-            print("Invalid choice. Please enter 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10.")
+            print("Invalid choice. Please enter 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, or 11.")
 
