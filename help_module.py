@@ -39,11 +39,17 @@ def help():
     print(f"\nOption 9: Explain Me! 😣")
     print("You are here right now😂")
 
-    print(f"\nOption 10: Get Me Out of Here! 🚪")
+    print(f"\nOption 10: Loan Management 💳")
+    print("This option lets you add, update, or remove loan records and their scheduled repayments.")
+    print("When you add a loan, the credited loan amount is recorded as income, and repayment schedules are tracked automatically.")
+    print("You can also review active loans, update loan details, and manage repayment status.")
+
+    print(f"\nOption 11: Get Me Out of Here! 🚪")
     print("This option exits the program.")
 
-    print(f"\nSubscription processing📌: When you start the app, due subscriptions are checked automatically.")
-    print("If multiple periods are pending, you will be asked whether to add all pending expenses at once.")
+    print(f"\nSubscription and loan processing📌: When you start the app, due subscriptions and due loan payments are checked automatically.")
+    print("If multiple subscription periods are pending, you will be asked whether to add all pending expenses at once.")
+    print("If a loan payment is due, it will be processed and recorded as an expense if you confirm it.")
     print("If a subscription is due earlier than the current month and was added during the same month, you will also be prompted before it is charged.")
 
-    print(f"\nImportant❗: Do not delete storage.db, assets.db, or subscriptions.db files created by the program, as they contain your transaction, asset, and subscription records.")
+    print(f"\nImportant❗: Do not delete storage.db, assets.db, subscriptions.db, or loans.db files created by the program, as they contain your stored records.")
