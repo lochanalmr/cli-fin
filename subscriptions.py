@@ -390,7 +390,7 @@ def process_due_subscriptions():
 
                 next_due_date_obj = calculate_next_due_date(due_date, frequency)
                 if next_due_date_obj is not None:
-                    subscription_updates.append((next_due_date_obj.strftime('%Y-%m-%d'), processing_time, record_id))
+                    subscription_updates.append((next_due_date_obj.strftime('%d-%m-%Y'), processing_time, record_id))
             elif choice == '2':
                 result = mark_subscription_payments_as_already_paid(record_id, due_count)
                 print(f"Marked {result['payment_count']} payment(s) as already paid without adding expense records.")
