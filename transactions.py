@@ -147,15 +147,20 @@ def data_entry():
                 print('No active loans found to link this payment to.')
 
         # Handle credit card expenses
+        charged_to_card = False
         if transaction_type == 'expense':
             from credit_cards import prompt_for_credit_card_expense
             use_credit_card, card_id = prompt_for_credit_card_expense(amount, transaction_type, category)
             if use_credit_card:
-                print(f'Expense of {format_currency(amount)} charged to credit card.')
+                # Expense is deferred — it will be recorded when the credit card is paid.
+                # Do NOT write it to storage now to avoid double-counting.
+                charged_to_card = True
+                print(f'Expense of {format_currency(amount)} charged to credit card. It will be recorded as an expense when the card is paid.')
 
-        data_write(amount, category, transaction_type)
-        if transaction_type == 'expense' and category == 'Asset Purchase':
-            add_asset(amount=amount)
+        if not charged_to_card:
+            data_write(amount, category, transaction_type)
+            if transaction_type == 'expense' and category == 'Asset Purchase':
+                add_asset(amount=amount)
 
         if not get_confirmation("Do you want to add another entry? (y/n): "):
             return

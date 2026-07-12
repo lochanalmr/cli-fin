@@ -13,7 +13,7 @@ CREDIT_CARDS_DB = 'credit_cards.db'
 CREDIT_CARD_EXPENSES_DB = 'credit_card_expenses.db'
 CONFIG_FILE = 'user_config.json'
 
-VERSION = '1.9'
+VERSION = '1.9.1'
 
 EXPENSE_CATEGORIES = {
     '1': 'Entertainment',
