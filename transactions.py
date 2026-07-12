@@ -146,7 +146,54 @@ def data_entry():
             else:
                 print('No active loans found to link this payment to.')
 
-        # Handle credit card expenses
+        # Handle credit card payments — link to a card and update its balance
+        if transaction_type == 'expense' and category == 'Credit Card Payments':
+            from credit_cards import _fetch_credit_cards, record_credit_card_payment_from_spendable, pay_from_another_credit_card
+            cards = _fetch_credit_cards()
+            active_cards = [card for card in cards if card[12] == 'active']
+            if active_cards:
+                print('\nSelect the credit card this payment is for:')
+                headers = ['ID', 'Name', 'Current Balance']
+                card_rows = []
+                for card in active_cards:
+                    card_id, card_name = card[0], card[1]
+                    card_balance = card[8]
+                    card_rows.append([card_id, card_name, format_currency(card_balance)])
+                print_table(headers, card_rows)
+
+                card_choice = get_int_input(
+                    'Enter credit card ID: ',
+                    'Invalid ID.',
+                    lambda cid: any(card[0] == cid for card in active_cards),
+                    'No credit card found with that ID.',
+                    input_fn=safe_input
+                )
+                selected_card = next(card for card in active_cards if card[0] == card_choice)
+
+                print('\nPay from:')
+                print('1. Spendable balance')
+                print('2. Another credit card')
+                pay_from_choice = get_choice(
+                    'Choose payment source (1 or 2): ',
+                    ['1', '2'],
+                    'Invalid choice. Please enter 1 or 2.',
+                    input_fn=safe_input
+                )
+                if pay_from_choice == '1':
+                    # record_credit_card_payment_from_spendable handles storage write + card balance update
+                    record_credit_card_payment_from_spendable(selected_card, amount)
+                    print(f'Credit card balance updated and payment of {format_currency(amount)} recorded from spendable balance.')
+                else:
+                    pay_from_another_credit_card(selected_card, amount)
+            else:
+                print('No active credit cards found. Recording as a plain expense.')
+                data_write(amount, category, transaction_type)
+            # Skip the normal data_write and the "charge to card?" prompt below
+            if not get_confirmation("Do you want to add another entry? (y/n): "):
+                return
+            continue
+
+        # Handle credit card expenses (charging a purchase to a card)
         charged_to_card = False
         if transaction_type == 'expense':
             from credit_cards import prompt_for_credit_card_expense
