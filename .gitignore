@@ -33,3 +33,5 @@ target/
 *.csv
 *.patch
 /tests
+
+__pycache__/
