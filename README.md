@@ -14,7 +14,7 @@ Clifin is a simple command line tool for tracking finances. All databases are cr
 - Managing loans (add, update, remove, and auto debit as expense at application startup)
 - Managing credit cards (able to mark expenses to be paid from credit card, show payable amount on credit card payment date etc.)
 
-## Technology stack
+## Dependencies
 - Python 3.14
 - sqlite3
 - json
@@ -33,4 +33,15 @@ When data is exported as a .csv file, it will be available within the same folde
 
 `subscriptions.db` contains subscriptions data. <br>It contains: `id` (automatically incremented), `name`, `amount`, `interval`, `next_due`, `created_at`.
 
-`loans.db` contains loans data. <br>It contains: `id` (automatically incremented), `name`, `principal`, `interest_rate`, `term_months`, `monthly_payment`, `next_due`, `created_at`. 
+`loans.db` contains loans data. <br>It contains: `id` (automatically incremented), `name`, `principal`, `interest_rate`, `term_months`, `monthly_payment`, `next_due`, `created_at`.
+
+## Note
+This project was built with AI assistance. All design decisions were taken by myself, was tested for logical and runtime errors manually, and modified as required. 
+
+### Tools used
+July 2026
+- GitHub Copilot (MAI-Code-1-Flash/Claude Haiku 4.5/Raptor Mini): Code generation
+- Codex (GPT 5.6 Terra): Code generation/ Refactoring
+- Mistral Vibe: Code generation/ Refactoring
+- Qwen Coder: Refactoring
+- Antigravity (Gemini 3.5 Flash/Claude Sonnet 4.6): Code generation/ Refactoring

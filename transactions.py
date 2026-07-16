@@ -22,6 +22,7 @@ from shared import (
 
 
 def _normalize_transaction_amount(amount, transaction_type):
+    """Normalize amount based on transaction type."""
     normalized_type = (transaction_type or '').lower()
     if normalized_type == 'income':
         return abs(amount)
@@ -31,6 +32,7 @@ def _normalize_transaction_amount(amount, transaction_type):
 
 
 def _get_transaction_categories(transaction_type):
+    """Get categories for a given transaction type."""
     if transaction_type == 'income':
         return {
             '1': 'Salary',
@@ -42,7 +44,134 @@ def _get_transaction_categories(transaction_type):
     return EXPENSE_CATEGORIES
 
 
+def _display_monthly_summary(year, month):
+    """Display quick summary of monthly expenses."""
+    month_name = datetime(year, month, 1).strftime("%B")
+    month_filter = f"{year:04d}-{month:02d}-%"
+    
+    with db_cursor(STORAGE_DB) as c:
+        c.execute(
+            "SELECT amount, category, type FROM storage WHERE created_at LIKE ?",
+            (month_filter,)
+        )
+        rows = c.fetchall()
+
+    expense_totals = {}
+    total_expenses = 0.0
+    for amount, category, transaction_type in rows:
+        if transaction_type.lower() == 'expense':
+            display_amount = abs(amount)
+            expense_totals[category] = expense_totals.get(category, 0.0) + display_amount
+            total_expenses += display_amount
+
+    print("Quick Summary")
+    print(f"You have spent {format_currency(total_expenses)} in {month_name}.")
+    if expense_totals:
+        top_category, top_amount = max(expense_totals.items(), key=lambda item: item[1])
+        print(f"Top expense category: {top_category} ({format_currency(top_amount)})")
+    else:
+        print("Top expense category: None")
+
+
+def _handle_loan_payment(amount):
+    """Handle loan payment transaction linking."""
+    from loans import _fetch_loans
+    
+    rows = _fetch_loans()
+    active_loans = [row for row in rows if row[10] == 'active']
+    
+    if not active_loans:
+        print('No active loans found to link this payment to.')
+        return
+
+    print('\nSelect the loan this payment is for:')
+    headers = ['ID', 'Name', 'Remaining']
+    loan_rows = [
+        [loan[0], loan[1], format_currency(loan[6])]
+        for loan in active_loans
+    ]
+    print_table(headers, loan_rows)
+    
+    loan_choice = get_choice(
+        'Enter loan ID: ',
+        [str(loan[0]) for loan in active_loans],
+        'Invalid loan selection. Please enter one of the listed IDs.'
+    )
+    selected_loan_id = int(loan_choice)
+    
+    advance_due_date = get_confirmation(
+        'Should the next due date be pushed to the next period with the remaining balance? (y/n): ',
+        input_fn=safe_input
+    )
+    apply_loan_payment_to_loan(selected_loan_id, amount, advance_due_date=advance_due_date)
+    print('Loan balance updated successfully.')
+
+
+def _handle_credit_card_payment(amount):
+    """Handle credit card payment transaction linking."""
+    from credit_cards import (
+        _fetch_credit_cards,
+        record_credit_card_payment_from_spendable,
+        pay_from_another_credit_card
+    )
+    
+    cards = _fetch_credit_cards()
+    active_cards = [card for card in cards if card[12] == 'active']
+    
+    if not active_cards:
+        print('No active credit cards found. Recording as a plain expense.')
+        data_write(amount, 'Credit Card Payments', 'expense')
+        return True  # Skip normal data_write
+
+    print('\nSelect the credit card this payment is for:')
+    headers = ['ID', 'Name', 'Current Balance']
+    card_rows = [
+        [card[0], card[1], format_currency(card[8])]
+        for card in active_cards
+    ]
+    print_table(headers, card_rows)
+
+    card_choice = get_int_input(
+        'Enter credit card ID: ',
+        'Invalid ID.',
+        lambda cid: any(card[0] == cid for card in active_cards),
+        'No credit card found with that ID.',
+        input_fn=safe_input
+    )
+    selected_card = next(card for card in active_cards if card[0] == card_choice)
+
+    print('\nPay from:')
+    print('1. Spendable balance')
+    print('2. Another credit card')
+    pay_from_choice = get_choice(
+        'Choose payment source (1 or 2): ',
+        ['1', '2'],
+        'Invalid choice. Please enter 1 or 2.',
+        input_fn=safe_input
+    )
+    
+    if pay_from_choice == '1':
+        record_credit_card_payment_from_spendable(selected_card, amount)
+        print(f'Credit card balance updated and payment of {format_currency(amount)} recorded from spendable balance.')
+    else:
+        pay_from_another_credit_card(selected_card, amount)
+    
+    return True  # Skip normal data_write
+
+
+def _handle_credit_card_expense(amount, transaction_type, category):
+    """Handle charging an expense to a credit card."""
+    from credit_cards import prompt_for_credit_card_expense
+    
+    use_credit_card, card_id = prompt_for_credit_card_expense(amount, transaction_type, category)
+    if use_credit_card:
+        print(f'Expense of {format_currency(amount)} charged to credit card. It will be recorded as an expense when the card is paid.')
+        return True  # Charged to card, skip normal write
+    return False
+
+
 def data_write(amount, category, transaction_type):
+    """Write a transaction to the database."""
     normalized_type = transaction_type.lower()
     signed_amount = _normalize_transaction_amount(amount, normalized_type)
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -56,36 +185,12 @@ def data_write(amount, category, transaction_type):
 
 
 def data_entry():
+    """Main transaction entry function."""
     while True:
         current_year = datetime.now().year
         current_month = datetime.now().month
-        month_name = datetime(current_year, current_month, 1).strftime("%B")
-
-        month_filter = f"{current_year:04d}-{current_month:02d}-%"
-        with db_cursor(STORAGE_DB) as c:
-            c.execute(
-                "SELECT amount, category, type FROM storage WHERE created_at LIKE ?",
-                (month_filter,)
-            )
-            rows = c.fetchall()
-
-        expense_totals = {}
-        total_expenses = 0.0
-        for amount, category, transaction_type in rows:
-            if transaction_type.lower() == 'expense':
-                display_amount = abs(amount)
-                expense_totals[category] = expense_totals.get(category, 0.0) + display_amount
-                total_expenses += display_amount
-
-          
-        print("Quick Summary")
-          
-        print(f"You have spent {format_currency(total_expenses)} in {month_name}.")
-        if expense_totals:
-            top_category, top_amount = max(expense_totals.items(), key=lambda item: item[1])
-            print(f"Top expense category: {top_category} ({format_currency(top_amount)})")
-        else:
-            print("Top expense category: None")
+        
+        _display_monthly_summary(current_year, current_month)
 
         print("\nTransaction Type")
         print("1. Income")
@@ -113,100 +218,20 @@ def data_entry():
 
         amount = get_positive_float("Enter amount: ")
 
-        if transaction_type == 'expense' and category == 'Loan Payments':
-            rows = []
-            try:
-                from loans import _fetch_loans
-                rows = _fetch_loans()
-            except Exception:
-                rows = []
-
-            active_loans = [row for row in rows if row[10] == 'active']
-            if active_loans:
-                print('\nSelect the loan this payment is for:')
-                headers = ['ID', 'Name', 'Remaining']
-                loan_rows = []
-                for loan_row in active_loans:
-                    loan_id, loan_name, payment_amount, frequency, term_count, total_value, remaining_balance, *_ = loan_row
-                    loan_rows.append([loan_id, loan_name, format_currency(remaining_balance)])
-                print_table(headers, loan_rows)
-                
-                loan_choice = get_choice(
-                    'Enter loan ID: ',
-                    [str(row[0]) for row in active_loans],
-                    'Invalid loan selection. Please enter one of the listed IDs.'
-                )
-                selected_loan_id = int(loan_choice)
-                advance_due_date = get_confirmation(
-                    'Should the next due date be pushed to the next period with the remaining balance? (y/n): ',
-                    input_fn=safe_input
-                )
-                apply_loan_payment_to_loan(selected_loan_id, amount, advance_due_date=advance_due_date)
-                print('Loan balance updated successfully.')
-            else:
-                print('No active loans found to link this payment to.')
-
-        # Handle credit card payments — link to a card and update its balance
-        if transaction_type == 'expense' and category == 'Credit Card Payments':
-            from credit_cards import _fetch_credit_cards, record_credit_card_payment_from_spendable, pay_from_another_credit_card
-            cards = _fetch_credit_cards()
-            active_cards = [card for card in cards if card[12] == 'active']
-            if active_cards:
-                print('\nSelect the credit card this payment is for:')
-                headers = ['ID', 'Name', 'Current Balance']
-                card_rows = []
-                for card in active_cards:
-                    card_id, card_name = card[0], card[1]
-                    card_balance = card[8]
-                    card_rows.append([card_id, card_name, format_currency(card_balance)])
-                print_table(headers, card_rows)
-
-                card_choice = get_int_input(
-                    'Enter credit card ID: ',
-                    'Invalid ID.',
-                    lambda cid: any(card[0] == cid for card in active_cards),
-                    'No credit card found with that ID.',
-                    input_fn=safe_input
-                )
-                selected_card = next(card for card in active_cards if card[0] == card_choice)
-
-                print('\nPay from:')
-                print('1. Spendable balance')
-                print('2. Another credit card')
-                pay_from_choice = get_choice(
-                    'Choose payment source (1 or 2): ',
-                    ['1', '2'],
-                    'Invalid choice. Please enter 1 or 2.',
-                    input_fn=safe_input
-                )
-                if pay_from_choice == '1':
-                    # record_credit_card_payment_from_spendable handles storage write + card balance update
-                    record_credit_card_payment_from_spendable(selected_card, amount)
-                    print(f'Credit card balance updated and payment of {format_currency(amount)} recorded from spendable balance.')
-                else:
-                    pay_from_another_credit_card(selected_card, amount)
-            else:
-                print('No active credit cards found. Recording as a plain expense.')
-                data_write(amount, category, transaction_type)
-            # Skip the normal data_write and the "charge to card?" prompt below
-            if not get_confirmation("Do you want to add another entry? (y/n): "):
-                return
-            continue
-
-        # Handle credit card expenses (charging a purchase to a card)
-        charged_to_card = False
+        # Handle special expense categories
+        skip_normal_write = False
         if transaction_type == 'expense':
-            from credit_cards import prompt_for_credit_card_expense
-            use_credit_card, card_id = prompt_for_credit_card_expense(amount, transaction_type, category)
-            if use_credit_card:
-                # Expense is deferred — it will be recorded when the credit card is paid.
-                # Do NOT write it to storage now to avoid double-counting.
-                charged_to_card = True
-                print(f'Expense of {format_currency(amount)} charged to credit card. It will be recorded as an expense when the card is paid.')
+            if category == 'Loan Payments':
+                _handle_loan_payment(amount)
+            elif category == 'Credit Card Payments':
+                skip_normal_write = _handle_credit_card_payment(amount)
+            else:
+                skip_normal_write = _handle_credit_card_expense(amount, transaction_type, category)
 
-        if not charged_to_card:
+        # Write transaction if not handled specially
+        if not skip_normal_write:
             data_write(amount, category, transaction_type)
-            if transaction_type == 'expense' and category == 'Asset Purchase':
+            if category == 'Asset Purchase':
                 add_asset(amount=amount)
 
         if not get_confirmation("Do you want to add another entry? (y/n): "):

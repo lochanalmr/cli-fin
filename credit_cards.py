@@ -22,17 +22,23 @@ from shared import (
 )
 
 
+def calculate_updated_credit_card_balance(current_balance, payment_amount):
+    """Calculate the updated balance after a credit card payment."""
+    return current_balance - payment_amount
 
+
+def get_max_payment_amount(current_balance, interest_amount):
+    """Return the maximum payment amount allowed before a card becomes overpaid."""
+    if current_balance > 0:
+        return current_balance + interest_amount
+    return None
 
 
 # Credit Card CRUD Operations
 
 def _insert_credit_card_record(name, credit_limit, interest_rate, billing_date_day, due_date_day, billing_date_month, due_date_month):
     """Insert a new credit card record into the database."""
-    
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Calculate current date for last billing/due dates
     today = date.today()
     
     with db_cursor(CREDIT_CARDS_DB, commit=True) as c:
@@ -47,22 +53,21 @@ def _insert_credit_card_record(name, credit_limit, interest_rate, billing_date_d
 
 def add_credit_card():
     """Add a new credit card."""
-       
     print('Add Credit Card')
-    
+
     # Get credit card name
     while True:
         name = safe_input('Enter credit card name/description: ').strip()
         if name:
             break
         print('Credit card name cannot be empty.')
-    
+
     # Get credit limit
     credit_limit = get_positive_float('Enter credit limit: ')
-    
+
     # Get interest rate (APR as percentage)
     interest_rate = get_positive_float('Enter annual interest rate (APR) as percentage (e.g., 18 for 18%): ')
-    
+
     # Get billing date (day of month)
     billing_date_day = get_int_input(
         'Enter billing date (day of month, 1-31): ',
@@ -70,15 +75,15 @@ def add_credit_card():
         lambda d: 1 <= d <= 31,
         'Day must be between 1 and 31.'
     )
-    
-    # Get billing date (month - can be different from due date month)
+
+    # Get billing date month
     billing_date_month = get_int_input(
         'Enter billing date month (1-12): ',
         'Invalid month. Please enter a valid number.',
         lambda m: 1 <= m <= 12,
         'Month must be between 1 and 12.'
     )
-    
+
     # Get due date (day of month)
     due_date_day = get_int_input(
         'Enter due date (day of month, 1-31): ',
@@ -86,22 +91,21 @@ def add_credit_card():
         lambda d: 1 <= d <= 31,
         'Day must be between 1 and 31.'
     )
-    
-    # Get due date (month - can be different from billing date month)
+
+    # Get due date month
     due_date_month = get_int_input(
         'Enter due date month (1-12): ',
         'Invalid month. Please enter a valid number.',
         lambda m: 1 <= m <= 12,
         'Month must be between 1 and 12.'
     )
-    
+
     _insert_credit_card_record(name, credit_limit, interest_rate, billing_date_day, due_date_day, billing_date_month, due_date_month)
     print('\nCredit card added successfully.')
 
 
 def _fetch_credit_cards():
     """Fetch all credit cards from the database."""
-    
     with db_cursor(CREDIT_CARDS_DB) as c:
         c.execute(
             "SELECT id, name, credit_limit, interest_rate, billing_date_day, due_date_day, billing_date_month, due_date_month, current_balance, statement_balance, last_billing_date, last_payment_date, status, created_at FROM credit_cards ORDER BY id"
@@ -584,7 +588,7 @@ def record_credit_card_payment_from_spendable(card, amount):
     
     # Update credit card balance
     
-    new_balance = max(current_balance - amount, 0.0)
+    new_balance = calculate_updated_credit_card_balance(current_balance, amount)
     
     with db_cursor(CREDIT_CARDS_DB, commit=True) as c:
         c.execute(
@@ -651,7 +655,7 @@ def pay_from_another_credit_card(source_card, amount):
     
     # Update source card balance (the one being paid)
     source_record_id = source_card[0]
-    source_new_balance = max(source_card[8] - amount, 0.0)
+    source_new_balance = calculate_updated_credit_card_balance(source_card[8], amount)
     
     
     with db_cursor(CREDIT_CARDS_DB, commit=True) as c:
@@ -723,8 +727,8 @@ def make_credit_card_payment():
      billing_date_month, due_date_month, current_balance, statement_balance,
      last_billing_date, last_payment_date, status, created_at) = selected_card
     
-    if current_balance <= 0:
-        print(f'Credit card "{name}" has no balance to pay.')
+    if current_balance < 0:
+        print(f'Credit card "{name}" already has a credit balance of {format_currency(abs(current_balance))}.')
         return
     
     # Calculate any overdue interest
@@ -740,12 +744,16 @@ def make_credit_card_payment():
         interest_amount = calculate_interest_accrued(current_balance, daily_rate, days_overdue)
     
     total_due = current_balance + interest_amount
+    max_payment_amount = get_max_payment_amount(current_balance, interest_amount)
     
     print(f'\nCredit Card: {name}')
     print(f'Current balance: {format_currency(current_balance)}')
     if interest_amount > 0:
         print(f'Interest accrued ({days_overdue} days): {format_currency(interest_amount)}')
-    print(f'Total due: {format_currency(total_due)}')
+    if max_payment_amount is not None:
+        print(f'Total due: {format_currency(total_due)}')
+    else:
+        print('No outstanding balance; any positive payment will create a credit balance.')
     
     # Get payment amount
     payment_input = safe_input(f'Enter payment amount (or press Enter for full payment of {format_currency(total_due)}): ').strip()
@@ -761,8 +769,8 @@ def make_credit_card_payment():
             print('Invalid payment amount.')
             return
     
-    if payment_amount > total_due:
-        print(f'Payment amount cannot exceed total due. Maximum: {format_currency(total_due)}')
+    if max_payment_amount is not None and payment_amount > max_payment_amount:
+        print(f'Payment amount cannot exceed total due. Maximum: {format_currency(max_payment_amount)}')
         return
     
     # Ask where to pay from
